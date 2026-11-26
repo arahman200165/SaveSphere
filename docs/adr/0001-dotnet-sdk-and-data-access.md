@@ -1,6 +1,6 @@
 # ADR-0001: .NET SDK pin and data access (EF Core, per-module migrations)
 
-- **Status:** accepted (owner decision 2026-11-25; acceptance evidence not yet recorded, see below)
+- **Status:** accepted (owner decision 2026-11-25; evidence recorded below)
 - **Date:** 2026-11-25
 - **Requirements:** ARC-01, ARC-02, ARC-08, ARC-12, NFR-07, M01-R22
 
@@ -51,4 +51,12 @@ All must pass before this ADR's evidence is recorded (scaffold epic E01):
 - Easier: model-first slices, one reviewable migration chain per module, SDK/Docker/CI parity.
 - Harder: EF-generated SQL must be reviewed for PostgreSQL-specific behavior (uuidv7 defaults, partial indexes, check constraints); a few modules may later need hand-tuned SQL.
 - Revisit: SDK pin on each .NET servicing update (document the bump in a commit); migration ownership of reserved schemas if a module is extracted into its own repository (not planned).
-- Evidence for the acceptance tests above is **not yet recorded**; it will be added here when the scaffold lands.
+
+## Evidence recorded 2026-11-25
+
+- `global.json` pins 10.0.202 with `rollForward: latestPatch`, and the Dockerfile builds with `mcr.microsoft.com/dotnet/sdk:10.0.202` (runtime `aspnet:10.0.6`); both checked by `BuildConventionTests` and a real image build. CI uses `actions/setup-dotnet` with `global-json-file` (workflow not yet run on GitHub).
+- Migrations apply to an empty database, and a second apply is a no-op; the history table lives in `core`, none in `public`; all 13 schemas exist; rollback to zero and re-apply works (`MigrationTests`).
+- `ModuleBoundaryTests` read the real `.csproj` files and fail if a module references another module or a host project.
+- `dotnet ef migrations script --idempotent` produces reviewable SQL for the initial migration.
+- Snake_case mapping uses the `EFCore.NamingConventions` package (explicit mapping was the alternative). Hand-written SQL in the migration (extra schemas, append-only trigger) is allowed by this ADR.
+- Not verified: the SDK/Docker parity check in CI.

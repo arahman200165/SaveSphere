@@ -1,6 +1,6 @@
 # ADR-0003: Test stack (xUnit v3, Testcontainers, real PostgreSQL)
 
-- **Status:** accepted (owner decision 2026-11-25; acceptance evidence not yet recorded, see below)
+- **Status:** accepted (owner decision 2026-11-25; evidence recorded below)
 - **Date:** 2026-11-25
 - **Requirements:** QA-01, QA-03, ARC-01, ARC-02, NFR-07, M01-R22
 
@@ -42,4 +42,12 @@ The PRD names no test framework; this is a pending choice.
 - Easier: confident persistence/outbox tests, no local DB setup, parity between local and CI.
 - Harder: Docker is a hard prerequisite for the full suite; slower than pure unit tests, so unit and integration projects stay separate and are runnable independently.
 - Revisit: when the Android client lands, add a separate strategy for offline/sync fixtures shared with the server (ARC-02, QA-03); mobile tests will be covered by their own ADR.
-- Evidence for the acceptance tests above is **not yet recorded**; it will be added here when the scaffold lands.
+
+## Evidence recorded 2026-11-25
+
+- `dotnet test --solution SaveSphere.slnx` from a clean state with only Docker running passes (88 tests at the time of writing); no environment variables or pre-existing database needed.
+- xUnit v3 test projects run under `dotnet test` on SDK 10.0.202 using the Microsoft Testing Platform runner, opted in through `"test": { "runner": "Microsoft.Testing.Platform" }` in `global.json`. Selection by requirement: `--filter-trait "Requirement=ARC-02"`.
+- Isolation: one container per test run, and each test creates its own database (cloned from a migrated template when it needs the schema); the dev compose database is never touched.
+- Drift: the fixture reads the image tag from `docker-compose.yml`, and `ComposeConfigTests` assert both compose files render the same pinned tag.
+- Requirement traits are on every test class (`[Requirement("...")]`).
+- Not verified: the suite on a GitHub-hosted runner (workflow not yet run), and a parallel double run of the whole suite.

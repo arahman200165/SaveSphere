@@ -62,14 +62,30 @@ infrastructure/{docker,cloudflare,database,backups} · tests/ · docs/ · docker
 
 ## Current phase
 
-Phase 01 / epic E01 "Bootstrap" is next (monorepo, .NET API, PostgreSQL, migrations, Docker, dev/prod isolation). Exit criteria and the 25 phase-01 requirements: `python scripts/prd.py id phase-01`. No build/test commands exist yet; **add them to this file when the scaffold lands** (and keep this file under ~150 lines).
+Phase 01 / epic E01 "Bootstrap": the **walking skeleton is implemented** (see `docs/e01-status.md` for what is done, what has evidence, and what is deferred). Exit criteria and the 25 phase-01 requirements: `python scripts/prd.py id phase-01`. Remaining Phase 01 work (owner auth, Angular/Expo shells, Cloudflare, backups/SEC-10, design tokens, ink/editor spikes) is **not started**.
+
+## Build, test, run
+
+```
+dotnet build SaveSphere.slnx                      # warnings are errors (ADR-0002)
+dotnet test --solution SaveSphere.slnx            # xUnit v3 on Microsoft Testing Platform; Docker must be running
+dotnet test --project tests/SaveSphere.UnitTests  # one project; add --filter-trait "Requirement=ARC-02" to select by requirement
+UPDATE_OPENAPI=1 dotnet test --project tests/SaveSphere.IntegrationTests   # regenerate packages/api-contracts/openapi.json
+docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env up --build   # needs POSTGRES_PASSWORD, see README
+dotnet ef migrations add <Name> --project apps/backend/Modules/<Module> --startup-project apps/backend/SaveSphere.Migrator --output-dir Persistence/Migrations
+```
+
+- Layout now: `apps/backend/{SaveSphere.Api,SaveSphere.Migrator,SaveSphere.SharedKernel,SaveSphere.Infrastructure,Modules/Core}`, `tests/{UnitTests,ArchitectureTests,IntegrationTests,TestSupport}`, `packages/api-contracts/openapi.json` (committed, generated). Only the **Migrator** runs DDL; the API never does. No Worker project yet.
+- Every test carries `[Requirement("ID")]`. New endpoints go in an `IEndpointModule` (mapped under `/api/v1`); new module = own project, own `DbContext`, own schema, and a migration history table in that schema (ADR-0001). Package versions only in `Directory.Packages.props`.
+- Log redaction is a single chokepoint (`RedactingSink`); never log request bodies/queries, and wrap secrets in `Redacted<T>` or mark `[Sensitive]`.
+- `.claude/settings.json` denies reading `.env.*`, which also matches `.env.example`; the env variable list lives in the README instead.
 
 ## Open decisions to resolve (ADR) before building
 
 - **Authentication.** The PRD proposes ASP.NET Core Identity/OpenIddict with passkeys/MFA and a recovery procedure (SEC-05, M01-R01, SEC-10) and lists identity packages as a *pending feasibility decision*. Decide via ADR before building.
-- Host setup, sync framework, rich-text/ink approach, background scheduling, library versions, backup targets (all "pending" in the PRD).
+- Host setup, sync framework, rich-text/ink approach, background scheduling, backup targets (all "pending" in the PRD). Decided so far: ADR-0001..0004 (SDK/EF Core, API shape and logging, test stack, Docker/PostgreSQL).
 
 ## Local environment (this Windows PC)
 
 - Windows 11; Git Bash or PowerShell. Verified available: Docker 29.x, Python 3.13, Node 24.21.0, npm 11.
-- .NET SDKs: 10.0.202 in `C:\Program Files\dotnet` (the one on PATH) and 10.0.402 in `%LOCALAPPDATA%\Microsoft\dotnet`. Decide which to pin in `global.json` at scaffold time.
+- .NET SDKs: 10.0.202 in `C:\Program Files\dotnet` (the one on PATH) and 10.0.402 in `%LOCALAPPDATA%\Microsoft\dotnet`. `global.json` pins 10.0.202 (ADR-0001). Host port 5432 is already used by another local PostgreSQL, so dev compose publishes 55432.

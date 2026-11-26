@@ -1,6 +1,6 @@
 # ADR-0002: API shape, OpenAPI, logging redaction and build conventions
 
-- **Status:** accepted (owner decision 2026-11-25; acceptance evidence not yet recorded, see below)
+- **Status:** accepted (owner decision 2026-11-25; evidence recorded below)
 - **Date:** 2026-11-25
 - **Requirements:** ARC-08, ARC-01, NFR-10, SEC-01, SEC-04, M01-R22
 
@@ -51,4 +51,12 @@ The PRD does not mandate any web, logging or OpenAPI library; each is a proposal
 - Easier: uniform module registration, one redaction chokepoint to audit, deterministic dependency versions.
 - Harder: Serilog is a new third-party dependency to track; Minimal APIs need discipline for validation (a shared validation filter will be added with the first real endpoint). Warnings-as-errors can briefly block upgrades.
 - Revisit: if client generation from built-in OpenAPI proves insufficient for the TypeScript contracts (ARC-08), reassess NSwag/Kiota in a new ADR when `packages/api-contracts` is built.
-- Evidence for the acceptance tests above is **not yet recorded**; it will be added here when the scaffold lands.
+
+## Evidence recorded 2026-11-25
+
+- Endpoint prefix and kebab-case: `ApiConventionTests`. Contract: the document is generated at test time from the running API and compared with the committed `packages/api-contracts/openapi.json` (regenerate with `UPDATE_OPENAPI=1`). **Deviation:** the ADR said "the build emits openapi.json"; a test-time comparison was used instead because it needs no build-time app launch and still fails on drift.
+- Redaction: `LogRedactionTests` (unit) and `RedactionThroughTheApiTests` (end to end) prove fake secrets, connection strings, bearer tokens, `[Sensitive]` properties, `Redacted<T>` and exception text never reach a sink; the compose run showed no password or role name in the API logs. Request logging records the path only.
+- Problem Details with no internals in Production: `ApiConventionTests`.
+- Warnings as errors: the build failed on analyzer findings (CA1848, CA1861) while developing, so the setting is active; `BuildConventionTests` assert the flags. No dedicated canary was added.
+- Central package versions: `BuildConventionTests`.
+- Serilog is used with `preserveStaticLogger: true` and an explicit logger for request logging, so parallel hosts never share events.

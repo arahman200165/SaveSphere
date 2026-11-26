@@ -1,6 +1,6 @@
 # ADR-0004: Containerized environments, dev/prod isolation, PostgreSQL 18 and migrations
 
-- **Status:** accepted (owner decision 2026-11-25; acceptance evidence not yet recorded, see below)
+- **Status:** accepted (owner decision 2026-11-25; evidence recorded below)
 - **Date:** 2026-11-25
 - **Requirements:** NFR-07, NFR-10, SEC-10, M01-R22, ARC-08, ARC-12
 
@@ -49,4 +49,13 @@ Decisions needed: how API and database are containerized, how dev and prod are k
 - Easier: reproducible bring-up on any machine with Docker; early detection of container/network problems; the same artifact path for dev, CI and prod.
 - Harder: slower inner loop than running the API on the host (a `dotnet run`/`dotnet watch` path remains available against the dev database); more files to keep consistent.
 - Open items deliberately left to later steps: a separate least-privilege runtime DB role versus the migrator's owner role (decide when owner auth is added), backup/restore and SEC-10 recovery package, Cloudflare tunnel, and TLS/secret provisioning on the home server.
-- Evidence for the acceptance tests above is **not yet recorded**; it will be added here when the scaffold lands.
+
+## Evidence recorded 2026-11-25
+
+- Real run on the owner's PC: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build -d --wait` brought up PostgreSQL 18.7 (healthy), the migrator (exit code 0) and the API (healthy); `/api/v1/health` returned 200. Stopping PostgreSQL gave 503 (`core.database: down`) while `/health/live` stayed 200; restarting it recovered to 200. The stack and its volume were then removed.
+- Isolation and hardening are asserted from the rendered configs by `ComposeConfigTests`: distinct project, volume, network, database and role names; disjoint host ports; every published port on `127.0.0.1`; production PostgreSQL publishes nothing; start order postgres (healthy), migrator (completed), API; API and migrator read-only, all capabilities dropped, `no-new-privileges`; rendering without `POSTGRES_PASSWORD` fails (no fallback secret); no literal password in the committed files.
+- API readiness reports not-ready when migrations are pending or the database is down (`HealthTests`).
+- PostgreSQL 18 image: the cluster lives in `/var/lib/postgresql/18/docker`, so the named volume mounts at `/var/lib/postgresql`. `uuidv7()` works in the pinned image (`MigrationTests`).
+- The API container's logs contained neither the database password nor the role/database names.
+- **Deviations:** (1) `.env.example` was not created because `.claude/settings.json` denies `.env.*`; the variables are documented in the README. (2) The migrator also supports `--check` (exit 3 when migrations are pending). (3) Dev defaults to host ports 55432/58080 because 5432 is taken on the owner's PC.
+- Not verified: the prod compose (never started), the CI bring-up job (not yet run on GitHub).
