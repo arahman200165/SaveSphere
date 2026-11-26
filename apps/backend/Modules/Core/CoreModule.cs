@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using SaveSphere.Infrastructure.Database;
 using SaveSphere.Modules.Core.Persistence;
+using SaveSphere.Modules.Core.Records;
 using SaveSphere.SharedKernel;
 
 namespace SaveSphere.Modules.Core;
@@ -27,6 +28,7 @@ public static class CoreModule
         });
 
         services.AddScoped<IOutbox, CoreOutbox>();
+        services.AddScoped<IRecordRegistry, RecordRegistry>();
         services.AddScoped<IModuleDatabase, CoreModuleDatabase>();
         return services;
     }

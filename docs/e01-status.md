@@ -13,11 +13,12 @@ is claimed verified without one.
 | Health | Liveness and readiness (database reachable, migrations current), coarse states only | `HealthTests` (200, 503 pending, 503 unreachable, no leakage, liveness independent) and a real compose run |
 | PostgreSQL and migrations | PostgreSQL 18.7, EF Core, 13 reserved schemas, `core` tables, per-module history table, explicit migrator, idempotent and reversible migration | `MigrationTests` (apply, re-apply no-op, schemas, history location, rollback to zero and re-apply) |
 | Typed IDs (ARC-01 groundwork) | `Id<TKind>` (UUIDv7, JSON string, EF `uuid` converter) | `IdTests`; database `uuidv7()` defaults in `MigrationTests` and `OutboxTests` |
+| Record registry (ARC-01) | `core.record` (typed kind, owner, source, lifecycle, sensitivity, search visibility, timestamps), `core.record_link`, `core.record_external_ref` (namespaced external IDs, one canonical record each); `IRecordRegistry` in the shared kernel; DB-enforced value sets, immutable identity columns, terminal tombstone; events carry IDs and kinds only | `RecordRegistryTests` (ARC-01-AC01: distinct typed IDs and links, one canonical expense counted once across links and re-imports; atomic with outbox; fail-closed policy), `RecordKindAndExternalRefTests` |
 | Outbox and event log (ARC-02 groundwork) | `core.outbox_message` and append-only `core.event_log` written with the domain change | `OutboxTests` (commit together, rollback together, failing insert rolls everything back, UPDATE/DELETE/TRUNCATE rejected) |
 | Module boundaries (ARC-12) | One project and schema per module, no cross-module references | `ModuleBoundaryTests` |
 | Redaction (NFR-10, SEC-01 for logs) | Central `RedactingSink`, `Redacted<T>`, `[Sensitive]`, name and pattern scrubbing, exception text scrubbed | `LogRedactionTests`, `RedactionThroughTheApiTests`, no password or role name in the API container logs during the compose run |
 | Docker (reproducible local deploy) | Multi-stage Dockerfile, base + dev + prod compose, non-root read-only containers, loopback-only ports, postgres then migrator then api | `ComposeConfigTests`; manual `docker compose up --build --wait` (all healthy, migrator exit 0, stopping PostgreSQL gives 503 then recovery) |
-| Test stack | xUnit v3 on Microsoft Testing Platform, Testcontainers PostgreSQL, requirement traits | The suite itself (88 tests passing at the time of writing) |
+| Test stack | xUnit v3 on Microsoft Testing Platform, Testcontainers PostgreSQL, requirement traits | The suite itself (132 tests passing at the time of writing) |
 
 ## Documents awaiting owner review (no automated evidence)
 
@@ -36,7 +37,7 @@ is claimed verified without one.
 - Angular and Expo shells, design tokens, generated TypeScript client from the committed OpenAPI.
 - Cloudflare tunnel and remote access without VPN, Android enrollment.
 - Backups, restore verification and the SEC-10 emergency recovery package (NFR-07 RPO/RTO measurement).
-- ARC-01 record registry (`core.record`), planned as its own step after this skeleton.
+- ARC-01 follow-ups: the registry stores sensitivity and search visibility but nothing enforces them yet (SEC-01 policy engine, with owner auth); `owner_id` is an unconstrained UUID until the identity module defines the owner (no cross-schema FK by design); the registry is staged on `CoreDbContext`, so a second module needs the shared-transaction pattern below; the registry offers no count/query API on purpose, since counts must go through SEC-01 authorization.
 - Outbox dispatcher and worker (ARC-09, Phase 06); cross-module shared-transaction pattern for the outbox when a second module lands.
 - Canonical knowledge/ink/canvas schema, storage manifest, import manifest, ink/editor/import feasibility spikes (M09-R05, ARC-11, KN-10).
 - Least-privilege runtime DB role versus the migrator's owner role (decide with owner auth).
