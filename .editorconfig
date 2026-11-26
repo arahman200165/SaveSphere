@@ -19,3 +19,7 @@ trim_trailing_whitespace = false
 
 [Makefile]
 indent_style = tab
+
+# EF Core migrations are tool-generated and then hand-edited for SQL; skip style/quality analyzers on them.
+[**/Persistence/Migrations/*.cs]
+generated_code = true

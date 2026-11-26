@@ -1,0 +1,69 @@
+# SaveSphere base stack (ADR-0004). Never run this file alone: combine it with exactly one
+# environment override, which sets the project name, database identifiers and published ports.
+#
+#   dev : docker compose -f docker-compose.yml -f docker-compose.dev.yml  --env-file .env      up --build
+#   prod: docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.prod up --build -d
+#
+# Start order: postgres (healthy) -> migrator (runs to completion) -> api.
+# Only the migrator runs DDL; the API never does. Secrets come from the (gitignored) env file.
+
+services:
+  postgres:
+    image: postgres:18.7
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your env file (see the README section Local environment)}
+    volumes:
+      # PostgreSQL 18+ images keep the cluster in a version-specific subdirectory of /var/lib/postgresql.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username=\"$$POSTGRES_USER\" --dbname=\"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+
+  migrator:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+      target: migrator
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+      target: api
+    restart: unless-stopped
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "dotnet", "SaveSphere.Api.dll", "--healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  pgdata:

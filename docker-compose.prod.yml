@@ -1,0 +1,26 @@
+# Production override (ADR-0004). Written and linted now (`docker compose config`); first run is the home-server step.
+# Isolated from dev: own project name, volume, network, database and role. PostgreSQL publishes no port at all;
+# the API is reachable on loopback only, for the Cloudflare tunnel connector to forward to.
+
+name: savesphere-prod
+
+x-database-connection: &database-connection
+  ConnectionStrings__Default: "Host=postgres;Port=5432;Database=savesphere_prod;Username=savesphere_prod;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your env file (see the README section Local environment)};Timeout=10"
+
+services:
+  postgres:
+    environment:
+      POSTGRES_DB: savesphere_prod
+      POSTGRES_USER: savesphere_prod
+
+  migrator:
+    environment:
+      <<: *database-connection
+      DOTNET_ENVIRONMENT: Production
+
+  api:
+    environment:
+      <<: *database-connection
+      ASPNETCORE_ENVIRONMENT: Production
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-58180}:8080"

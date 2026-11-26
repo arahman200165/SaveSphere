@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Dependency-free contracts shared by every module: typed IDs, events, redaction markers. -->
+
+</Project>

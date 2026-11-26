@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Helpers shared by every test project: requirement traceability trait, repository paths, log capture. -->
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.extensibility.core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\apps\backend\SaveSphere.Infrastructure\SaveSphere.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

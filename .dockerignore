@@ -1,0 +1,34 @@
+# Keep the build context small and free of anything private or generated.
+.git
+.github
+.claude
+.vs
+.idea
+.vscode
+
+# Secrets and local config (never send to the Docker daemon)
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+*.pfx
+appsettings.*.local.json
+
+# Build output and caches
+**/bin
+**/obj
+**/node_modules
+**/TestResults
+dist/
+
+# Not needed to build the backend images
+docs/
+tests/
+scripts/
+apps/web
+apps/mobile
+packages/
+backups/
+recovery-packages/

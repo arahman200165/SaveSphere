@@ -1,0 +1,19 @@
+<Solution>
+  <Folder Name="/apps/" />
+  <Folder Name="/apps/backend/">
+    <Project Path="apps/backend/SaveSphere.Api/SaveSphere.Api.csproj" />
+    <Project Path="apps/backend/SaveSphere.Infrastructure/SaveSphere.Infrastructure.csproj" />
+    <Project Path="apps/backend/SaveSphere.Migrator/SaveSphere.Migrator.csproj" />
+    <Project Path="apps/backend/SaveSphere.SharedKernel/SaveSphere.SharedKernel.csproj" />
+  </Folder>
+  <Folder Name="/apps/backend/Modules/" />
+  <Folder Name="/apps/backend/Modules/Core/">
+    <Project Path="apps/backend/Modules/Core/SaveSphere.Modules.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SaveSphere.ArchitectureTests/SaveSphere.ArchitectureTests.csproj" />
+    <Project Path="tests/SaveSphere.IntegrationTests/SaveSphere.IntegrationTests.csproj" />
+    <Project Path="tests/SaveSphere.TestSupport/SaveSphere.TestSupport.csproj" />
+    <Project Path="tests/SaveSphere.UnitTests/SaveSphere.UnitTests.csproj" />
+  </Folder>
+</Solution>
