@@ -1,0 +1,79 @@
+# --- Secrets & local config (never commit) ---
+.env
+.env.*
+!.env.example
+*.pfx
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+secrets/
+appsettings.*.local.json
+appsettings.Local.json
+**/secrets.json
+cloudflare/*.json
+*credentials*.json
+
+# --- Data, backups, uploads (private user data) ---
+backups/
+data/
+*.dump
+*.bak
+*.sqlite
+*.sqlite3
+*.db
+blobs/
+file-store/
+recovery-packages/
+.generated/
+
+# --- .NET ---
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+*.nupkg
+publish/
+artifacts/
+
+# --- Node / Angular / Expo ---
+node_modules/
+dist/
+.angular/
+.expo/
+.expo-shared/
+web-build/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+npm-debug.log*
+pnpm-debug.log*
+
+# --- Android / native builds ---
+apps/mobile/android/
+apps/mobile/ios/
+*.apk
+*.aab
+local.properties
+.gradle/
+.cxx/
+
+# --- Docker ---
+docker-compose.override.yml
+
+# --- Editors / OS ---
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Claude Code (personal overrides only) ---
+.claude/settings.local.json
+CLAUDE.local.md
