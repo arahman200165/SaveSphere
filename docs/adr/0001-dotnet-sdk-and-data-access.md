@@ -42,7 +42,7 @@ All must pass before this ADR's evidence is recorded (scaffold epic E01):
 
 - Pin **SDK 10.0.202** in `global.json` with `rollForward: latestPatch`.
 - Use **EF Core with Npgsql**, one `DbContext` per module, each with `MigrationsHistoryTable("__ef_migrations_history", "<module schema>")`.
-- Tables, columns and schemas are snake_case (CLAUDE.md conventions). The mechanism (explicit mapping versus a naming-convention package) is chosen at scaffold time and recorded in the code, not as a mandatory dependency.
+- Tables, columns and schemas are snake_case (CLAUDE.md conventions). The mechanism is the `EFCore.NamingConventions` package (`UseSnakeCaseNamingConvention()`), chosen at scaffold and confirmed by the owner on 2026-11-25; explicit per-column mapping was the alternative.
 - Raw SQL is allowed inside migrations and for performance-critical or reporting queries, but never writes across module schemas.
 - Migration 0001 is owned by the Core module and creates all 13 PRD schemas as empty, reserved namespaces. After that, each module's migrations only add objects inside the schema it owns.
 

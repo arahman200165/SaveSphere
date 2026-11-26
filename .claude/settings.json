@@ -8,7 +8,13 @@
     ],
     "deny": [
       "Read(./.env)",
-      "Read(./.env.*)",
+      "Read(./.env.local)",
+      "Read(./.env.*.local)",
+      "Read(./.env.dev*)",
+      "Read(./.env.prod*)",
+      "Read(./.env.stag*)",
+      "Read(./.env.test*)",
+      "Read(./.env.secret*)",
       "Read(./secrets/**)",
       "Read(./backups/**)",
       "Read(./recovery-packages/**)"

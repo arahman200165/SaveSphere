@@ -41,7 +41,8 @@ Decisions needed: how API and database are containerized, how dev and prod are k
 - **Everything containerized from the start:** multi-stage `Dockerfile` for the API (SDK image to runtime image, non-root user, read-only root filesystem where practical), `docker-compose.yml` (base), plus `docker-compose.dev.yml` and `docker-compose.prod.yml` overrides.
 - **PostgreSQL 18**, official image pinned to an exact minor tag (the tag is recorded in the compose files and checked against the Testcontainers tag, see ADR-0003). Named volumes, host port bound to `127.0.0.1` only.
 - **Isolation:** distinct compose project names (`savesphere-dev`, `savesphere-prod`), distinct volumes/networks/database names, and credentials supplied via gitignored `.env` or secret files outside the repo. No fallback default secrets anywhere.
-- **Explicit migrator:** migrations run as a one-shot service (`depends_on: service_completed_successfully`) before the API. The API does not run DDL.
+- **Explicit migrator:** migrations run as a one-shot service (`depends_on: service_completed_successfully`) before the API. The API does not run DDL. The migrator also has a `--check` mode (exit 3 when migrations are pending) for scripts and CI.
+- **Host ports** default to 55432 (PostgreSQL, dev only) and 58080 dev / 58180 prod (API), all on `127.0.0.1`, overridable by env, because 5432 is taken on the owner's PC.
 - **Prod compose** is written and linted now; it is exercised at the home-server step.
 
 ## Consequences
@@ -57,5 +58,5 @@ Decisions needed: how API and database are containerized, how dev and prod are k
 - API readiness reports not-ready when migrations are pending or the database is down (`HealthTests`).
 - PostgreSQL 18 image: the cluster lives in `/var/lib/postgresql/18/docker`, so the named volume mounts at `/var/lib/postgresql`. `uuidv7()` works in the pinned image (`MigrationTests`).
 - The API container's logs contained neither the database password nor the role/database names.
-- **Deviations:** (1) `.env.example` was not created because `.claude/settings.json` denies `.env.*`; the variables are documented in the README. (2) The migrator also supports `--check` (exit 3 when migrations are pending). (3) Dev defaults to host ports 55432/58080 because 5432 is taken on the owner's PC.
+- **Changes from the original text (owner confirmed 2026-11-25):** (1) `.env.example` was first blocked by a broad `.env.*` deny rule in `.claude/settings.json`; the owner narrowed the rule to real env files and the example file was then added. (2) The migrator also supports `--check` (exit 3 when migrations are pending). (3) Dev defaults to host ports 55432/58080 because 5432 is taken on the owner's PC.
 - Not verified: the prod compose (never started), the CI bring-up job (not yet run on GitHub).

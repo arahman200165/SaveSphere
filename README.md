@@ -23,8 +23,8 @@ Prerequisites: Docker, and the .NET SDK pinned in [`global.json`](global.json) (
 
 ### Local environment
 
-Secrets never live in the repo. Docker Compose reads them from an env file you create yourself (`.env` for
-development, `.env.prod` for production). Both are gitignored. The variables:
+Secrets never live in the repo. Copy [`.env.example`](.env.example) to `.env` (development) or `.env.prod` (production);
+Docker Compose reads the copy you create. Both copies are gitignored. The variables:
 
 | Variable | Required | Notes |
 |---|---|---|

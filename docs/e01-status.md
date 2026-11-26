@@ -35,5 +35,3 @@ is claimed verified without one.
 - Outbox dispatcher and worker (ARC-09, Phase 06); cross-module shared-transaction pattern for the outbox when a second module lands.
 - Canonical knowledge/ink/canvas schema, storage manifest, import manifest, ink/editor/import feasibility spikes (M09-R05, ARC-11, KN-10).
 - Threat model document; least-privilege runtime DB role versus the migrator's owner role.
-- `.env.example`: not created because `.claude/settings.json` denies `.env.*` (the pattern also matches this filename).
-  The variables are documented in the README instead; either add an exception to the deny rule or create the file by hand.

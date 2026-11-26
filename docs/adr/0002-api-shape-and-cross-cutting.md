@@ -32,7 +32,7 @@ The PRD does not mandate any web, logging or OpenAPI library; each is a proposal
 ## Acceptance tests / evidence
 
 - A test enumerates all registered endpoints and asserts each lives under `/api/v1` with kebab-case segments.
-- The build emits `openapi.json` and a test fails if the committed contract changes without regenerating (consumed later by `packages/api-contracts`).
+- A test generates the OpenAPI document from the running API and fails if it differs from the committed `packages/api-contracts/openapi.json` (consumed later by the TypeScript client); the file is regenerated with `UPDATE_OPENAPI=1`.
 - **Redaction (NFR-10, SEC-01):** log a request containing a bearer token, a connection string, a password field and a field marked sensitive. The captured sink output contains none of those values. Request/response bodies and query strings are not logged by default.
 - Unhandled exceptions return an RFC 9457 `application/problem+json` response with no stack trace or inner exception text outside Development.
 - `dotnet build` fails on a new warning (verified by a deliberate unused-variable canary in a scratch branch/local check, not committed).
@@ -54,7 +54,7 @@ The PRD does not mandate any web, logging or OpenAPI library; each is a proposal
 
 ## Evidence recorded 2026-11-25
 
-- Endpoint prefix and kebab-case: `ApiConventionTests`. Contract: the document is generated at test time from the running API and compared with the committed `packages/api-contracts/openapi.json` (regenerate with `UPDATE_OPENAPI=1`). **Deviation:** the ADR said "the build emits openapi.json"; a test-time comparison was used instead because it needs no build-time app launch and still fails on drift.
+- Endpoint prefix and kebab-case: `ApiConventionTests`. Contract: the document is generated at test time from the running API and compared with the committed `packages/api-contracts/openapi.json` (regenerate with `UPDATE_OPENAPI=1`). Owner decision (2026-11-25): keep the test-time comparison rather than emitting the file at build, because it needs no build-time app launch and still fails on drift.
 - Redaction: `LogRedactionTests` (unit) and `RedactionThroughTheApiTests` (end to end) prove fake secrets, connection strings, bearer tokens, `[Sensitive]` properties, `Redacted<T>` and exception text never reach a sink; the compose run showed no password or role name in the API logs. Request logging records the path only.
 - Problem Details with no internals in Production: `ApiConventionTests`.
 - Warnings as errors: the build failed on analyzer findings (CA1848, CA1861) while developing, so the setting is active; `BuildConventionTests` assert the flags. No dedicated canary was added.

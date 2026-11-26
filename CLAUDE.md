@@ -78,7 +78,7 @@ dotnet ef migrations add <Name> --project apps/backend/Modules/<Module> --startu
 - Layout now: `apps/backend/{SaveSphere.Api,SaveSphere.Migrator,SaveSphere.SharedKernel,SaveSphere.Infrastructure,Modules/Core}`, `tests/{UnitTests,ArchitectureTests,IntegrationTests,TestSupport}`, `packages/api-contracts/openapi.json` (committed, generated). Only the **Migrator** runs DDL; the API never does. No Worker project yet.
 - Every test carries `[Requirement("ID")]`. New endpoints go in an `IEndpointModule` (mapped under `/api/v1`); new module = own project, own `DbContext`, own schema, and a migration history table in that schema (ADR-0001). Package versions only in `Directory.Packages.props`.
 - Log redaction is a single chokepoint (`RedactingSink`); never log request bodies/queries, and wrap secrets in `Redacted<T>` or mark `[Sensitive]`.
-- `.claude/settings.json` denies reading `.env.*`, which also matches `.env.example`; the env variable list lives in the README instead.
+- `.claude/settings.json` denies reading real env files (`.env`, `.env.local`, `.env.dev*`, `.env.prod*`, ...) but not `.env.example`. If you add a new env-file naming scheme, extend the deny list rather than relying on `.gitignore`.
 
 ## Open decisions to resolve (ADR) before building
 
