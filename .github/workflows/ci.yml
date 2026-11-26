@@ -1,0 +1,78 @@
+# Continuous integration (E01, ADR-0003 / ADR-0004).
+# Public repository rules: only GitHub-owned actions, each pinned to a commit SHA; no secrets are used or
+# echoed; throwaway credentials are generated per run and masked.
+
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore SaveSphere.slnx
+
+      - name: Build (warnings are errors)
+        run: dotnet build SaveSphere.slnx --no-restore --configuration Release
+
+      # Unit, architecture and integration tests. Integration tests start their own PostgreSQL container
+      # via Testcontainers and verify the committed OpenAPI contract is current.
+      - name: Test
+        run: dotnet test --solution SaveSphere.slnx --no-build --configuration Release
+
+  compose-smoke:
+    name: Compose bring-up (dev stack)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Generate a throwaway database password
+        run: |
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::${password}"
+          echo "POSTGRES_PASSWORD=${password}" >> "${GITHUB_ENV}"
+
+      - name: Start postgres, run the migrator, start the API
+        run: docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build -d --wait
+
+      - name: API reports ready
+        run: |
+          curl --fail --silent --show-error http://127.0.0.1:58080/api/v1/health
+          echo
+          curl --fail --silent --show-error http://127.0.0.1:58080/api/v1/health/live
+          echo
+
+      - name: Production compose renders (not started)
+        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
+
+      - name: Container status on failure
+        if: failure()
+        run: docker compose -f docker-compose.yml -f docker-compose.dev.yml ps --all
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.dev.yml down --volumes
