@@ -23,7 +23,7 @@ is claimed verified without one.
 ## Documents awaiting owner review (no automated evidence)
 
 - `docs/threat-model.md` (draft v0.1): assets, trust boundaries and STRIDE tables with an honest implemented/planned/deferred status per row. Review it before the tunnel, owner auth or any real data is introduced.
-- `docs/adr/0005-authentication-and-device-credentials.md` (**proposed**): compares ASP.NET Core Identity with passkeys against Identity plus OpenIddict, with spike acceptance tests. No library is chosen and no identity code exists.
+- `docs/adr/0005-authentication-and-device-credentials.md` (**proposed**): compares ASP.NET Core Identity with passkeys against Identity plus OpenIddict. The headless part of the spike is run and recorded in the ADR (24/24 tests, both options). Still open before a decision: passkeys on the owner's real browser and Android (test 4), the Android authorization-code hand-off, PostgreSQL, and key management. No library is chosen and no identity code exists in this repository; the spike code lives outside it.
 
 ## Written but not yet run or verified
 

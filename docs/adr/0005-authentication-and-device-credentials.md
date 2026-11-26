@@ -48,6 +48,38 @@ For each of options 1 and 2, in a throwaway branch or scratch project (not merge
 8. Effort estimate in files and lines for each option, and the list of packages added (supply-chain review, licences).
 9. Authorization failures default to deny when device, scope or lock state is missing (SEC-04-AC01).
 
+## Spike evidence (2026-11-25)
+
+Two throwaway apps outside this repository (nothing identity-related is merged), driven by **one shared contract test suite** (xUnit v3, in-process TestServer) so both options face identical tests: 12 tests per option, 24/24 passing on three consecutive runs. Package versions: ASP.NET Core Identity 10.0.15, OpenIddict 7.9.0. Option 1 = Identity cookie for the owner, Identity bearer tokens for devices, custom `device` table with per-request lookup, custom refresh-token rotation. Option 2 = Identity cookie for the owner, OpenIddict (authorization code + PKCE, refresh tokens) with **one OpenIddict public client per device whose permitted scopes are that device's maximum scope**.
+
+| # | Acceptance test | Option 1 | Option 2 | Notes |
+|---|---|---|---|---|
+| 1 | One owner; second bootstrap rejected; 8 concurrent bootstraps give exactly one | pass | pass | Both rely on a single-row table with `CHECK (id = 1)`, not on an application check. |
+| 2 | Work device cannot widen scope: at enrollment, via refresh, forged JWT, tampered token, replayed refresh token | pass | pass | Opt 1: scope is read from the device row on every request, never from the token; rotation and replay detection are **custom code**. Opt 2: scope permissions, rotation and replay detection come from OpenIddict. |
+| 3 | Revoke one device: access and refresh tokens die at once; other device unaffected | pass | pass | Both need a database lookup per request for immediate access-token revocation (Opt 2 only with `EnableTokenEntryValidation` and `EnableAuthorizationEntryValidation`). |
+| 4 | Passkeys on desktop browser and Android; recovery codes | **not run** | **not run** | Needs the owner's real browsers and Android Credential Manager. Cannot be done headlessly; still required before deciding. |
+| 5 | PIN-derived value is not a server credential | pass (weak) | pass (weak) | Only proves a PIN hash is refused as bearer, refresh token and password. The real property (verifier never sent to the server) is a client design rule for the SEC-05 epic. |
+| 6 | Lockout; no account-existence leak | pass | pass | Identical status and body for unknown user, wrong password and locked account. **Finding:** five bad attempts lock the sole owner out, so an attacker can deny the owner sign-in. Needs a decision (passkey-first sign-in and per-IP throttling). Token-endpoint rate limiting was not tested. |
+| 7 | Audit without secrets | pass | pass | Audit rows and all captured log output (Debug level) contain no password, access token or refresh token. Audit is **custom code in both options**; neither option provides it. |
+| 8 | Effort and packages | see below | see below | |
+| 9 | Default deny with missing device, scope or lock | pass | pass | Anonymous, junk token and an owner browser session with no enrolled device are all refused on device-scoped endpoints. "Lock" state is not modelled yet (SEC-05 epic). |
+
+**Mutation checks (tests can fail):** removing OpenIddict's token/authorization entry validation and zero reuse leeway made T3 and the replay test fail in Option 2; reading scope from the token claim instead of the device row made T3 fail in Option 1. A flaky concurrency failure that appeared during the spike was traced to the spike's own shared SQLite connection, fixed, and re-run 15 times clean.
+
+**Effort (rough, scratch code, non-blank non-comment lines):** Option 1 `Opt1App.cs` 192, Option 2 `Opt2App.cs` 172, each including shared owner bootstrap, login, audit and endpoints. The difference is not size but **who owns the security-critical logic**: in Option 1 we wrote and must keep correct the device-scope check, refresh rotation, replay detection and scope-narrowing on refresh (roughly 70 lines, each with a failure mode the tests had to catch); in Option 2 these are library behavior plus configuration.
+
+**Packages added:** Option 1: none beyond Identity EF and the EF provider. Option 2: OpenIddict 7.9.0 meta and sub-packages (about 20 `OpenIddict.*` assemblies, including client packages pulled in by `OpenIddict.AspNetCore` that a pure server does not use) and Microsoft.IdentityModel 8.23.0. Licence of the OpenIddict packages: Apache-2.0 (from the package metadata).
+
+**Option 2 pitfalls found (each is a silent security downgrade if missed):**
+- `SetRefreshTokenReuseLeeway` defaults to 30 seconds: a replayed refresh token still works inside it. The spike sets it to zero.
+- Without `EnableTokenEntryValidation` / `EnableAuthorizationEntryValidation`, a revoked device's access token keeps working until it expires.
+- Refresh tokens are only issued when `offline_access` is requested and permitted.
+- Access-token encryption was disabled in the spike to inspect and forge JWTs; keep the default (encrypted) in production.
+
+**Not covered by this spike (still open):** passkeys on real devices (test 4); a native Android client doing authorization code + PKCE (browser or Custom Tab hand-off, redirect handling, offline behavior); PostgreSQL (the spike used in-memory SQLite); HTTPS and cookie flags; token-endpoint rate limiting; key management for OpenIddict signing and encryption keys in the self-hosted deployment (the spike used ephemeral keys, which would invalidate every token on restart).
+
+**Spike reading, not a decision:** both options can meet M01-R01-AC01 and the other tested criteria, so the choice rests on the untested items above. Option 2 removes the most hand-written security logic; Option 1 has the smaller dependency surface but moves rotation, replay detection and revocation into code this project must own and test forever. The decision is the owner's, and test 4 plus the Android client hand-off should be settled first.
+
 ## Decision
 
 Pending. Current leaning, to be confirmed or overturned by the evidence above: **option 2**, because per-device scoped and revocable tokens are central to M01-R01 and are better expressed by an established token server than by custom code; fall back to option 1 if the spike shows OpenIddict is disproportionate for one owner and two devices.
