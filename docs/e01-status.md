@@ -19,6 +19,11 @@ is claimed verified without one.
 | Docker (reproducible local deploy) | Multi-stage Dockerfile, base + dev + prod compose, non-root read-only containers, loopback-only ports, postgres then migrator then api | `ComposeConfigTests`; manual `docker compose up --build --wait` (all healthy, migrator exit 0, stopping PostgreSQL gives 503 then recovery) |
 | Test stack | xUnit v3 on Microsoft Testing Platform, Testcontainers PostgreSQL, requirement traits | The suite itself (88 tests passing at the time of writing) |
 
+## Documents awaiting owner review (no automated evidence)
+
+- `docs/threat-model.md` (draft v0.1): assets, trust boundaries and STRIDE tables with an honest implemented/planned/deferred status per row. Review it before the tunnel, owner auth or any real data is introduced.
+- `docs/adr/0005-authentication-and-device-credentials.md` (**proposed**): compares ASP.NET Core Identity with passkeys against Identity plus OpenIddict, with spike acceptance tests. No library is chosen and no identity code exists.
+
 ## Written but not yet run or verified
 
 - **CI** (`.github/workflows/ci.yml`): build and test job, and a compose bring-up job. It has never run on GitHub and has not
@@ -27,11 +32,11 @@ is claimed verified without one.
 
 ## Deferred (not started, still required by Phase 01)
 
-- Owner auth, device enrollment and scopes, lock (M01-R01, SEC-05, SEC-01 enforcement) and the authentication ADR.
+- Owner auth, device enrollment and scopes, lock (M01-R01, SEC-05, SEC-01 enforcement): blocked on deciding ADR-0005 after its spike.
 - Angular and Expo shells, design tokens, generated TypeScript client from the committed OpenAPI.
 - Cloudflare tunnel and remote access without VPN, Android enrollment.
 - Backups, restore verification and the SEC-10 emergency recovery package (NFR-07 RPO/RTO measurement).
 - ARC-01 record registry (`core.record`), planned as its own step after this skeleton.
 - Outbox dispatcher and worker (ARC-09, Phase 06); cross-module shared-transaction pattern for the outbox when a second module lands.
 - Canonical knowledge/ink/canvas schema, storage manifest, import manifest, ink/editor/import feasibility spikes (M09-R05, ARC-11, KN-10).
-- Threat model document; least-privilege runtime DB role versus the migrator's owner role.
+- Least-privilege runtime DB role versus the migrator's owner role (decide with owner auth).
