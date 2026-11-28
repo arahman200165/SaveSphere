@@ -1,7 +1,7 @@
 # ADR-0005: Authentication, device credentials and recovery
 
-- **Status:** proposed (options and acceptance tests defined; **no library is chosen until the spike evidence below is recorded and the owner decides**)
-- **Date:** 2026-11-25
+- **Status:** accepted 2026-11-28 (Option 2) with the rules and gates in "Decision" below. The owner delegated the decision ("decide on a path to take and record it"); the owner may overturn it before the first identity code is merged.
+- **Date:** 2026-11-25 (proposed), 2026-11-28 (decided)
 - **Requirements:** M01-R01, SEC-05, SEC-01, SEC-04, SEC-10, NFR-10, ARC-08
 
 ## Context
@@ -76,16 +76,78 @@ Two throwaway apps outside this repository (nothing identity-related is merged),
 - Refresh tokens are only issued when `offline_access` is requested and permitted.
 - Access-token encryption was disabled in the spike to inspect and forge JWTs; keep the default (encrypted) in production.
 
-**Not covered by this spike (still open):** passkeys on real devices (test 4); a native Android client doing authorization code + PKCE (browser or Custom Tab hand-off, redirect handling, offline behavior); PostgreSQL (the spike used in-memory SQLite); HTTPS and cookie flags; token-endpoint rate limiting; key management for OpenIddict signing and encryption keys in the self-hosted deployment (the spike used ephemeral keys, which would invalidate every token on restart).
+## Verification on the deployment host (2026-11-25)
 
-**Spike reading, not a decision:** both options can meet M01-R01-AC01 and the other tested criteria, so the choice rests on the untested items above. Option 2 removes the most hand-written security logic; Option 1 has the smaller dependency surface but moves rotation, replay detection and revocation into code this project must own and test forever. The decision is the owner's, and test 4 plus the Android client hand-off should be settled first.
+Second round, run on the Windows 11 home PC that will host the deployment, against real runtimes instead of the in-process test server: Kestrel on `localhost`, PostgreSQL 18.7 in Docker, desktop Chrome 157, and an Android 15 Google Play emulator (Chrome 124). Same two spike apps; passkeys, recovery codes, rate limiting and key persistence are ASP.NET Core / platform features shared by both options, so they do **not** discriminate between them.
+
+| Question | Result |
+|---|---|
+| Contract suite on PostgreSQL | 32/32 pass for both options (the in-memory SQLite run: 26 pass, 6 PostgreSQL-only tests skipped). One PostgreSQL-only defect found in the spike itself: an unquoted `CHECK (Id = 1)` passed on SQLite and failed on PostgreSQL. 12 repeated runs of the concurrent-bootstrap race: 0 failures. |
+| Passkeys, server side (desktop Chrome 157, virtual authenticator) | Registration (attestation verified), discoverable sign-in and signature counter 1 to 2 all work, for both options. |
+| Passkeys, **real** authenticator (owner's desktop Chrome) | Registration (`attachment=platform`, transports `hybrid` + `internal`) and sign-in both succeeded. The page must be the focused window or Chrome rejects the call. |
+| Passkeys, Android | **Not verified.** Chrome receives the server's options and shows the passkey UI. It requires a device screen lock (`isUserVerifyingPlatformAuthenticatorAvailable` is false without one) and a credential provider; with none, only "use a different phone or tablet" is offered. With a signed-in Google account that already has Google Password Manager data, creation requires restoring that data with the screen lock of the owner's other device, so the test was stopped. Completing it needs a throwaway Google account with no existing passkey data, or the owner's real phone. |
+| Native Android OIDC (Option 2) | A minimal native app (Java, no extra libraries) on Android 15: browser authorize, redirect to a private-use scheme (`com.savesphere.spike:/oauth2redirect`) handled by an intent filter, PKCE code exchange, authorized API call and refresh all returned 200. The owner's browser session stood in for the sign-in page. Not tested: Custom Tabs, verified App Links, an Expo/React Native auth library, process death mid-flow, offline use. Option 1 needs no browser hand-off (one-time enrollment code), which is simpler on Android but is custom client code. |
+| Restart behavior (both) | With persisted keys, access and refresh tokens survive a restart. Without a persistent key location (the read-only container default) every token dies on restart. Option 1 needs the ASP.NET Core data-protection key ring persisted; Option 2 needs the OpenIddict signing and encryption certificates persisted (plus the key ring for cookies). Compose must give the API a writable volume for them, and the spike stored them unencrypted on disk, so protecting them at rest and covering them in SEC-10 recovery is open work. |
+| Session cookie behind a TLS-terminating proxy (both) | **Finding.** Over plain HTTP, which is what the origin sees behind Cloudflare Tunnel, Identity's session cookie is issued **without `Secure`**; over HTTPS it has `Secure; HttpOnly; SameSite=Lax`. Needs an explicit secure-cookie policy and forwarded-headers handling. The fix itself was not run. |
+| Rate limiting (both) | The built-in ASP.NET Core limiter, applied per client and path, throttles sign-in, token and recovery endpoints (5 allowed, then 429 in the test). Lockout of the sole owner by an attacker remains a decision. |
+| Recovery codes (both) | **Finding.** Identity generates ten codes that redeem exactly once, but stores them in plaintext in `AspNetUserTokens`, which fails the "not stored in plaintext" criterion of test 4. They are also tied to the two-factor sign-in flow, not to passkey-only recovery. A custom hashed recovery mechanism is needed whichever option is chosen (SEC-10). |
+
+**Still open before accepting:** real Android passkey creation and sign-in; Custom Tabs or App Link redirect handling and an Expo auth library against Option 2; the secure-cookie fix; encryption of keys at rest; the owner lockout policy; hashed recovery codes.
+
+**Spike reading, not a decision:** every tested criterion is met by both options, and the deployment-level items (key persistence, cookie policy, recovery codes, throttling, passkeys) cost the same either way. The remaining differences are who owns the token-security logic (Option 1: roughly 70 custom lines that must be kept correct; Option 2: library behavior plus configuration with known pitfalls), dependency size (Option 2 adds about 20 packages), and the Android sign-in model (Option 2: standard OIDC through the browser, now shown to work; Option 1: custom enrollment-code flow). The decision is the owner's.
 
 ## Decision
 
-Pending. Current leaning, to be confirmed or overturned by the evidence above: **option 2**, because per-device scoped and revocable tokens are central to M01-R01 and are better expressed by an established token server than by custom code; fall back to option 1 if the spike shows OpenIddict is disproportionate for one owner and two devices.
+**Option 2: ASP.NET Core Identity (user store, passkeys) plus OpenIddict as the OAuth 2.0 / OIDC server.** Web and Android both use authorization code with PKCE. Option 1 is not pursued; Option 3 stays rejected.
+
+### Why
+
+Both options met every tested criterion, and passkeys, recovery codes, throttling and key persistence cost the same either way. The deciding factor is who owns the security-critical token logic (M01-R01-AC01, NFR-10). Option 1 means roughly 70 custom lines (device-scope check, refresh rotation, replay detection, scope narrowing), each with a failure mode the tests had to catch. Option 2 turns them into library behavior plus configuration. Its extra dependency size is real but bounded (see "Dependency posture"), and the Android authorization-code flow was shown to work end to end. The pitfalls found are all configuration, and the rules below pin them with tests so a silent downgrade fails the build.
+
+### Rules every implementation must follow (each becomes a test with a `[Requirement(...)]` trait)
+
+1. **One OpenIddict public client per enrolled device.** Its permitted scopes are that device's maximum scope and can never be widened by a token request; widening requires the owner to re-enroll.
+2. **OpenIddict hardening is mandatory and asserted by tests:** refresh-token reuse leeway is zero; `EnableTokenEntryValidation` and `EnableAuthorizationEntryValidation` are on (revocation is immediate); `offline_access` is granted explicitly; access-token encryption stays at its default (on) in production, so the spike's disabled encryption must not be copied; access tokens are short-lived (target 10 minutes, tune with evidence).
+3. **Server scope comes from the device record and the OpenIddict authorization, never from a client-supplied claim.** Missing device, scope or lock state denies (SEC-04-AC01).
+4. **Single owner** is enforced by the database (single-row table with a quoted `CHECK ("id" = 1)`, verified on PostgreSQL, not only SQLite), not by an application check.
+5. **Owner bootstrap** uses a one-time setup secret supplied through a secret file or environment variable outside the repo (never a fallback default, never logged). It is consumed by the first successful bootstrap and refuses a second owner even under concurrent requests.
+6. **Sign-in is passkey-first. There is no password credential for the owner.** Recovery is by hashed recovery codes only.
+7. **Recovery codes are custom, not Identity's:** ten codes of at least 80 bits of entropy, shown once, stored only as keyed hashes (HMAC-SHA-256 with a server-side key held with the secrets in rule 9, constant-time compare), single use, redemption audited and throttled, and issuing a new set invalidates the old set. Identity's two-factor recovery codes are not used because it stores them in plaintext. The SEC-10 emergency package is built on top of this and never holds the keys and the codes in the same package.
+8. **Lockout policy: an attacker cannot lock the owner out.** Passkey assertions are not subject to attempt lockout (they cannot be guessed). Recovery-code and enrollment-code redemption use per-client and global exponential backoff capped at 15 minutes, never a permanent lock, with identical status and body for unknown, wrong and throttled attempts (no account-existence leak). The built-in ASP.NET Core rate limiter fronts the sign-in, token, recovery and enrollment endpoints.
+9. **Key material:** OpenIddict signing and encryption keys and the ASP.NET Core data-protection key ring live on a persistent writable volume, protected at rest with a key-encryption secret or certificate supplied from outside the repo (a Docker secret in compose), never baked into an image or committed. Without persisted keys every token dies on restart, so a test restarts the API and asserts tokens survive. The rotation procedure and inclusion in SEC-10 recovery are documented when the volume is introduced.
+10. **Secure cookie policy:** the owner session cookie is always `Secure; HttpOnly; SameSite=Lax`. `UseForwardedHeaders` trusts only the configured proxy (loopback and the compose network), never arbitrary `X-Forwarded-*` from the internet. Tests assert that `Secure` is set behind a TLS-terminating proxy and that forwarded headers from an untrusted source are ignored.
+11. **Audit and redaction:** every authentication event, enrollment, token issuance, refusal and revocation is written to the `audit` schema by custom code (neither option provides this) and goes through the existing redaction chokepoint (ADR-0002). Tests assert that no password, token, code or key appears in audit rows or captured logs.
+12. **The PIN is client-side only.** Its verifier is never accepted by the server and a PIN reset grants no server access (SEC-05-AC01). Designed in the SEC-05 epic.
+
+### Dependency posture
+
+Reference only the OpenIddict packages a server with EF Core stores and token validation needs (`OpenIddict.Server.AspNetCore`, `OpenIddict.Validation.AspNetCore`, `OpenIddict.EntityFrameworkCore`), not the `OpenIddict.AspNetCore` meta package, which pulls in client assemblies a pure server does not use. Versions live only in `Directory.Packages.props`, pinned exactly (7.9.0 at decision time, Apache-2.0). Re-check licence and advisories on every upgrade.
+
+### Disposition of the items left open by the spike
+
+| Open item | Disposition |
+|---|---|
+| Real Android passkey creation and sign-in | Passkeys are an ASP.NET Core Identity and platform feature shared by both options, so this does not discriminate between them and does not block the decision. It **is a release gate** for M01-R01-AC01 and SEC-05: it must pass on the owner's real phone (or a clean throwaway Google account) and be recorded in `docs/e01-status.md` before either requirement is called verified. |
+| Custom Tabs / verified App Link and an Expo auth library | The server speaks standard OIDC, so this is a client choice. It is decided in the Expo shell epic by a short spike: `expo-auth-session` against `react-native-app-auth`, Custom Tabs, a verified HTTPS App Link redirect preferred and a private-use scheme as fallback, process death mid-flow, offline use. It does not block the server work. Until it is run, Android sign-in is not claimed to work. |
+| Secure-cookie fix | Decided (rule 10); implemented and tested in the identity epic. |
+| Encryption of keys at rest | Decided (rule 9); implemented and tested in the identity epic. |
+| Owner lockout policy | Decided (rule 8). |
+| Hashed recovery codes | Decided (rule 7). |
+| Least-privilege runtime database role (deferred from E01) | Adopted: the API connects as a DML-only role and the migrator keeps the owner role. Introduced with the first identity migration. |
+
+### Implementation order (identity epic; each step a small commit citing its requirements)
+
+1. `SaveSphere.Modules.Identity` project, `identity` schema and history table, single-owner table and bootstrap endpoint (rules 4, 5). Tests: M01-R01.
+2. Passkey registration and sign-in, hashed recovery codes, throttling (rules 6, 7, 8).
+3. OpenIddict server, device enrollment and per-device scope (rules 1 to 3). Tests: M01-R01-AC01 (work credential cannot widen scope by request, forged token, replay or refresh).
+4. Revocation bound, key persistence and rotation, secure cookie and forwarded headers (rules 2, 9, 10).
+5. Audit, redaction assertions and the SEC-01 default-deny authorization middleware (rules 3, 11). Tests: SEC-04-AC01.
+6. Update `docs/threat-model.md` rows from Planned to Implemented only where a passing test exists.
+
+Gates that stay visible until run: Android passkey on a real device, the Expo OIDC spike, SEC-05 lock behavior, the SEC-10 recovery package, backup of the key volume.
 
 ## Consequences
 
-- Until this ADR is accepted, no identity code, no user tables and no authentication middleware are added. The API remains unauthenticated and must not be exposed outside loopback (ADR-0004 already binds ports to `127.0.0.1`; the Cloudflare tunnel is deferred until auth exists).
+- Identity code may now be added in the order above. Until steps 1 to 5 are merged with passing tests, the API remains unauthenticated and must not be exposed outside loopback (ADR-0004 already binds ports to `127.0.0.1`; the Cloudflare tunnel stays deferred until auth exists).
 - Whichever option wins, the `identity` schema is owned by a new `SaveSphere.Modules.Identity` module (ADR-0001), emits typed events through the outbox, and its tests carry `[Requirement("M01-R01")]`, `[Requirement("SEC-05")]` and `[Requirement("SEC-01")]` traits.
 - Recovery (SEC-10) and the local unlock design depend on this decision and follow it.

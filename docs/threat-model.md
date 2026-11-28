@@ -5,7 +5,7 @@ exercises it; everything else is *Planned* or *Deferred* and must not be read as
 The repository is public, so this model is deliberately generic: no real hostnames, IP addresses, account names or device details.
 
 Requirements served: SEC-01, SEC-04, SEC-05, SEC-10, M01-R01, NFR-07, NFR-10. Related decisions: ADR-0002 (redaction), ADR-0004
-(containers and exposure), ADR-0005 (authentication, proposed).
+(containers and exposure), ADR-0005 (authentication, accepted).
 
 ## 1. Scope and assumptions
 
@@ -102,7 +102,7 @@ Status values: **Implemented** (test named), **Planned** (designed, not built), 
 
 ## 5. Top residual risks (as of v0.1)
 
-1. **No authentication exists.** The API is only safe because it binds to loopback; do not run the tunnel until ADR-0005 is decided and built.
+1. **No authentication exists.** The API is only safe because it binds to loopback; do not run the tunnel until ADR-0005 (decided) is built and tested.
 2. **No backups or recovery package.** A disk failure today loses all data (NFR-07 unmet).
 3. **Single runtime DB role.** A compromised API process could alter schema; mitigated later by a least-privilege role.
 4. **No policy engine.** SEC-01 enforcement is not built, so nothing sensitive may be stored yet.

@@ -82,8 +82,8 @@ dotnet ef migrations add <Name> --project apps/backend/Modules/<Module> --startu
 
 ## Open decisions to resolve (ADR) before building
 
-- **Authentication.** ADR-0005 (proposed) compares ASP.NET Core Identity + passkeys against Identity + OpenIddict and defines the spike evidence needed to decide. No identity code until it is accepted. Threat model: `docs/threat-model.md`.
-- Host setup, sync framework, rich-text/ink approach, background scheduling, backup targets (all "pending" in the PRD). Decided so far: ADR-0001..0004 (SDK/EF Core, API shape and logging, test stack, Docker/PostgreSQL).
+- **Authentication.** ADR-0005 (**accepted** 2026-11-28): ASP.NET Core Identity + passkeys + OpenIddict, one client per device; 12 mandatory implementation rules and the build order are in the ADR. No identity code exists yet; follow that order. The API stays loopback-only until auth is built. Threat model: `docs/threat-model.md`.
+- Host setup, sync framework, rich-text/ink approach, background scheduling, backup targets (all "pending" in the PRD). Decided so far: ADR-0001..0005 (SDK/EF Core, API shape and logging, test stack, Docker/PostgreSQL, authentication).
 
 ## Local environment (this Windows PC)
 
